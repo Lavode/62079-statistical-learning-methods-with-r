@@ -1,0 +1,197 @@
+\documentclass[a4paper]{scrreprt}
+
+% Uncomment to optimize for double-sided printing.
+% \KOMAoptions{twoside}
+
+% Set binding correction manually, if known.
+% \KOMAoptions{BCOR=2cm}
+
+% Localization options
+\usepackage[english]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+
+% Sub figures
+\usepackage{subcaption}
+
+% Quotations
+\usepackage{dirtytalk}
+
+% Floats
+\usepackage{float}
+
+% Enhanced verbatim sections. We're mainly interested in
+% \verbatiminput though.
+\usepackage{verbatim}
+
+% Automatically remove leading whitespace in lstlisting
+\usepackage{lstautogobble}
+
+% CSV to tables
+\usepackage{csvsimple}
+
+% PDF-compatible landscape mode.
+% Makes PDF viewers show the page rotated by 90°.
+\usepackage{pdflscape}
+
+% Advanced tables
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{longtable}
+
+% Fancy tablerules
+\usepackage{booktabs}
+
+% Graphics
+\usepackage{graphicx}
+
+% Current time
+\usepackage[useregional=numeric]{datetime2}
+
+% Float barriers.
+% Automatically add a FloatBarrier to each \section
+\usepackage[section]{placeins}
+
+% Custom header and footer
+\usepackage{fancyhdr}
+
+\usepackage{geometry}
+\usepackage{layout}
+
+% Math tools
+\usepackage{mathtools}
+% Math symbols
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{amsthm}
+% General symbols
+\usepackage{stmaryrd}
+
+% Utilities for quotations
+\usepackage{csquotes}
+
+% Bibliography
+\usepackage[
+  style=alphabetic,
+  backend=biber, % Default backend, just listed for completness
+  sorting=ynt % Sort by year, name, title
+]{biblatex}
+\addbibresource{references.bib}
+
+\DeclarePairedDelimiter\abs{\lvert}{\rvert}
+\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
+
+% Bullet point
+\newcommand{\tabitem}{~~\llap{\textbullet}~~}
+
+\pagestyle{plain}
+% \fancyhf{}
+% \lhead{}
+% \lfoot{}
+% \rfoot{}
+% 
+% Source code & highlighting
+\usepackage{listings}
+
+% SI units
+\usepackage[binary-units=true]{siunitx}
+\DeclareSIUnit\cycles{cycles}
+
+\newcommand{\lecture}{62079 - Statistical Learning Methods with R}
+\newcommand{\series}{1}
+% Convenience commands
+\newcommand{\mailsubject}{\lecture - Series \series}
+\newcommand{\maillink}[1]{\href{mailto:#1?subject=\mailsubject}
+                               {#1}}
+
+% Should use this command wherever the print date is mentioned.
+\newcommand{\printdate}{\today}
+
+\subject{\lecture}
+\title{Series \series}
+
+\author{Michael Senn \maillink{michael.senn@students.unibe.ch} --- 16-126-880}
+
+\date{\printdate}
+
+% Needs to be the last command in the preamble, for one reason or
+% another. 
+\usepackage{hyperref}
+
+\begin{document}
+\maketitle
+
+
+\setcounter{chapter}{\numexpr \series - 1 \relax}
+
+\chapter{Series \series}
+
+\section{Dataset statistics}
+
+The table below shows various statistics of the ``education'' dataset.
+\\
+
+\begin{tabular}{c c c c c c}
+		\toprule
+		Variable & Mean & Median & Std Dev & Min & Max \\
+		\midrule
+		ID & 250.5 & 250.5 & 144.48 & 1 & 500 \\
+		Education & 14.2 & 14 & 3.13 & -12 & 22 \\
+		Gender & 1.44 & 1 & 0.97 & 1 & 20 \\
+		Wage & 5465.3 & 5510.4 & 1222.76 & 41.8 & 8453.5 \\
+		\bottomrule
+\end{tabular}
+
+\section{Per-gender statistics}
+
+The following two tables show per-gender statistics of wage and education
+respectively. Both statistics exclude the inconsistent entry with a numerical
+gender value of $20$.
+\\
+
+\begin{tabular}{c c c c c c }
+		\multicolumn{6}{c}{\textbf{Wage} (CHF / month)} \\
+		\toprule
+		Gender & Mean & Median & Std Dev & Min & Max \\
+		\midrule
+		Male       & 5730       & 5730      & 1169   & 2047      & 8454 \\
+		Female     & 5070       & 4942      & 1200   &   41.8    & 8329 \\
+		\bottomrule
+\end{tabular}
+\\\\
+
+\begin{tabular}{c c c c c c }
+		\multicolumn{6}{c}{\textbf{Education} (years)} \\
+		\toprule
+		Gender & Mean & Median & Std Dev & Min & Max \\
+		\midrule
+		Male   & 14.3 & 14 & 2.94 &   5 & 21 \\
+		Female & 14.1 & 14 & 3.42 & -12 & 22 \\
+		\bottomrule
+\end{tabular}
+
+\section{Inconsistencies in data}
+
+There are various issues with the data, namely:
+\begin{itemize}
+		\item One row having a gender value of $20$, which is not in the valid
+				set of $\{1, 2\}$.
+		\item One row having an education value of $-12$, which is not a
+				positive integer
+		\item One row having a monthly wage of $41.8$ which, if not impossible,
+				is at least highly improbable
+\end{itemize}
+
+As it is not possible to recover the actual value for these tuples, they should
+be excluded from any subsequent analysis.
+
+\section{Inferring wage from other variables}
+
+Looking at the correlation of wage with other variables, one has a correlation
+of $\approx 0.03$ with ID. As expected these two are nearly uncorrelated, as
+the ID is merely a continuous identifier of the tuples. Correlation with
+education is $\approx 0.96$, indicating that eduation is a good indicator or
+wage --- or the other way around. Correlation with gender lastly is $\approx
+-0.26$, showing that there is a mild tendency for women to earn less than men.
+
+
+\end{document}

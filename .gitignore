@@ -1,0 +1,8 @@
+slides
+*.pdf
+
+*.Rproj
+.Rproj.user
+.Rhistory
+
+exercises/**/*.log
