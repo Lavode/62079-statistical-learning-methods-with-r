@@ -4,5 +4,6 @@ slides
 *.Rproj
 .Rproj.user
 .Rhistory
+.RData
 
 exercises/**/*.log
