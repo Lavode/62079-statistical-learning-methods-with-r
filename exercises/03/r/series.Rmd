@@ -1,0 +1,180 @@
+---
+title: "Statistical Learning Methods with R, Series 3"
+subtitle: "Michael Senn"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: inline
+---
+
+Load required libraries
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+
+# Data set overview and cleanup
+
+We first load the dataset, and calculate some basic statistics:
+```{r}
+df = read.csv("../data/mean20.txt", sep = " ", comment.char = "#")
+
+summary(df)
+sd(df$time)
+```
+
+Clearly this data has some messed up data. Specifically we see:
+
+* One NA value
+* One negative value
+
+So we will exclude both of these, and calculate the basic statistics again:
+```{r}
+df_clean = df %>% filter(
+  !is.na(time) 
+  & time >= 0
+)
+
+summary(df_clean)
+sd(df_clean$time)
+```
+
+# Test whether mean equal to 7.05 minutes
+
+We can test the hypothesis that the mean is equal to 7.05 minutes using a basic t test:
+```{r}
+t.test(
+  x = df_clean,
+  mu = 7.05
+)
+```
+
+We see that the conjectured mean is outside the 95% confidence interval, and the associated p value very close to 1. As such we should reject the hypothesis that the mean is equal to 7.05 minutes.
+
+Applying the same test on the original data does lead to a confidence interval encompassing 7.05, as the inappropriate value of -7.01 minutes contained within will increase the variance of the data. However due to said variance the p value is still not nearly as small as we would require it to be to reject the null hypothesis.
+```{r}
+t.test(
+  x = df,
+  mu = 7.05
+)
+```
+
+
+# Test whether mean is larger than or equal to 7.05 minutes
+
+To accomodate Mary, whose prior is that the mean cannot be smaller than 7.05 minutes, we will use a one-sided t test. Hence the alternative hypothesis will become that the true mean is greater than 7.05.
+```{r}
+t.test(
+  x = df_clean,
+  mu = 7.05,
+  alternative = "greater",
+)
+```
+
+The resulting p value being extremely close to 1 makes us accept the null hypothesis this time around.
+
+# Implementation of second-max
+
+We now implement a function which returns the second-largest (non-unique) element of a vector. A very useful function indeed.
+
+```{r}
+second_max = function(vec) {
+  if (!is.vector(vec)) {
+    stop("vec must be a vector")
+  }
+  if (length(vec) < 2) {
+    stop("vec must be of length >= 2")
+  }
+  
+  # Har har
+  # return(sort(df_clean$time, decreasing = TRUE)[2])
+  
+  if (vec[1] > vec[2]) {
+    max_val = vec[1]
+    second_max_Val = vec[2]
+  } else {
+    max_val = vec[2]
+    second_max_val = vec[1]
+  }
+  
+  for(i in 3:length(vec)) {
+    if (vec[i] > max_val) {
+      second_max_val = max_val
+      max_val = vec[i]
+    } else if (vec[i] > second_max_val) {
+      second_max_val = vec[i]
+    }
+  }
+  
+  return(second_max_val)
+}
+```
+
+# Implementation of summary function
+
+Lastly we will define a custom version of the built-in `summary` function.
+```{r}
+# Frankly I'm not sure if the idea is to have us simply use the built-in 
+# methods - which would make for a trivial implementation consisting of 
+# five function calls - or to have us implement it using only basic operations.
+my_summary = function(vec) {
+  if (!is.vector(vec)) {
+    stop("vec must be a vector")
+  }
+  
+  # return(c(mean(vec), median(vec), sd(vec), min(vec), max(vec)))
+  
+  meanval = 0
+  minval = vec[1]
+  maxval = vec[1]
+  n = length(vec)
+  
+  for (i in 1:n) {
+    x = vec[i]
+    
+    meanval = meanval + x
+    
+    if (x < minval) {
+      minval = x
+    } else if (x > maxval) {
+      maxval = x
+    }
+  }
+  
+  meanval = meanval / n
+  
+  sdval = 0
+  for (i in 1:n) {
+    x = vec[i]
+    
+    sdval = sdval + (x - meanval)^2
+  }
+  sdval = sqrt(sdval / (n - 1))
+
+  sorted = sort(vec)
+  if (n %% 2 == 1) {
+    medianval = sorted[ceiling(n / 2)]
+  } else {
+    medianval = (sorted[n / 2] + sorted[(n / 2) + 1]) / 2
+  }
+  
+  out = c(
+    meanval,
+    medianval,
+    sdval,
+    minval,
+    maxval
+  )
+  
+  return(out)
+}
+
+my_summary(df_clean$time)
+```
+
+
+
