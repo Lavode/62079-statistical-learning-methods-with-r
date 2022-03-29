@@ -1,0 +1,109 @@
+---
+title: "Statistical Learning Methods with R, Series 4"
+author: "Michael Senn"
+date: "29/03/2022"
+output: html_document
+---    
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```            
+
+Load required libraries
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+---
+
+## Linear model for wage
+
+```{r}
+df_edu = read.csv("../data/EducationBis.txt", sep = "\t")
+df_edu$Gender = factor(df_edu$Gender)
+summary(df_edu)
+
+df_edu_male = df_edu %>% filter(Gender == "male")
+df_edu_female = df_edu %>% filter(Gender == "female")
+
+lm_male = lm(df_edu_male$Wage ~ df_edu_male$Education)
+lm_female = lm(df_edu_female$Wage ~ df_edu_female$Education)
+```
+
+```{r}
+ggplot(df_edu, aes(x = Education, y = Wage)) +
+  geom_point(aes(color = Gender))
+```
+
+
+```{r}
+summary(lm_male)
+summary(lm_female)
+```
+
+We see that both models have a nearly equivalent slope of slightly below 400, indicating that each year of education adds around 400 $currency to one's monthly wage. Both slops are significantly above zero, indicating that there is a linear correlation between the two variables.
+
+The differences in the intercept of 24 for the male and -560 for the female model indicates the constant difference between men and women with the same level of education.
+
+## Combined model
+
+We can also build a combined model which includes all possible predictors: ID, education, and gender.
+
+```{r}
+lm_combined = lm(df_edu$Wage ~ df_edu$ID + df_edu$Education + df_edu$Gender)
+lm_combined
+```
+
+As expected the coefficient of the ID is nearly 0, indicating that the ID does not explain the wage at all. The correlations for education and gender being male then showcase the increase in wage which can be predicted by a person's education respectively gender.
+
+## Estimating computer performance
+
+```{r}
+library(corrplot)
+```
+
+
+```{r}
+df_pc = read.csv("../data/Computers.txt", sep="\t")
+df_pc$vendor = factor(df_pc$vendor)
+```
+
+Clearly variables such as the model or vendor name are not applicable to predict performance in a linear model. Further, using PRP to predict itself would be an adventurous choice. Lastly ERP should not be used, as this field is the result of a linear prediction of PRP, based on the available predictor values, done by the paper's authors.
+
+```{r}
+df_pc.cor = cor(
+  subset(
+    df_pc[sapply(df_pc, is.numeric)],
+    select = -c(ERP),
+  )
+)
+corrplot(df_pc.cor)
+```
+
+Looking at the correlation plot reveals that MMAX (the maximum main memory) is likely to be the best (linear) predictor for the PRP value. We thus use that one to build our model.
+
+```{r}
+lm_pc = lm(PRP ~ MMAX, data = df_pc)
+summary(lm_pc)
+confint(lm_pc, 'MMAX', level = 0.95)
+```
+
+Looking at the significance values it seems that this model is likely to explain something. The 95% confidence interval around the slope is roughly (0.011, 0.013). We can plot this linear relation.
+
+```{r}
+# One of many ways to plot an existing model is to use it to predict data, 
+# conflate this with the actual data, then we can use those columns as old-fashioned 
+# series to plot.
+df_pc.predict = cbind(df_pc, predict(lm_pc, interval = 'confidence'))
+
+ggplot(df_pc.predict, aes(x = MMAX, y = PRP)) +
+  geom_point() +
+  geom_line(aes(x = MMAX, y = fit)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2)
+```
+
+Clearly this is not perfect, but does explain some aspects of the observations.
+
