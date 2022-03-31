@@ -1,5 +1,8 @@
 slides
+
+# Rendered notebooks
 *.pdf
+*.html
 
 *.Rproj
 .Rproj.user

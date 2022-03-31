@@ -2,7 +2,9 @@
 title: "Statistical Learning Methods with R, Series 4"
 author: "Michael Senn"
 date: "29/03/2022"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---    
 
 ```{r setup, include=FALSE}
@@ -19,7 +21,9 @@ library(ggplot2)
 
 ---
 
-## Linear model for wage
+## Estimating wage
+
+### Linear model per gender
 
 ```{r}
 df_edu = read.csv("../data/EducationBis.txt", sep = "\t")
@@ -35,7 +39,8 @@ lm_female = lm(df_edu_female$Wage ~ df_edu_female$Education)
 
 ```{r}
 ggplot(df_edu, aes(x = Education, y = Wage)) +
-  geom_point(aes(color = Gender))
+  geom_point(aes(color = Gender)) +
+  theme_minimal()
 ```
 
 
@@ -48,7 +53,7 @@ We see that both models have a nearly equivalent slope of slightly below 400, in
 
 The differences in the intercept of 24 for the male and -560 for the female model indicates the constant difference between men and women with the same level of education.
 
-## Combined model
+### Combined model
 
 We can also build a combined model which includes all possible predictors: ID, education, and gender.
 
@@ -71,7 +76,9 @@ df_pc = read.csv("../data/Computers.txt", sep="\t")
 df_pc$vendor = factor(df_pc$vendor)
 ```
 
-Clearly variables such as the model or vendor name are not applicable to predict performance in a linear model. Further, using PRP to predict itself would be an adventurous choice. Lastly ERP should not be used, as this field is the result of a linear prediction of PRP, based on the available predictor values, done by the paper's authors.
+### Useable predictors
+
+Clearly variables such as the model or vendor name are not applicable to predict performance in a linear model. Further, using PRP to predict itself would be an questionable choice. Lastly ERP should not be used, as this field is the result of a linear prediction of PRP, based on the available predictor values, done by the paper's authors.
 
 ```{r}
 df_pc.cor = cor(
@@ -82,6 +89,8 @@ df_pc.cor = cor(
 )
 corrplot(df_pc.cor)
 ```
+
+### Predicting performance using maximum main memory
 
 Looking at the correlation plot reveals that MMAX (the maximum main memory) is likely to be the best (linear) predictor for the PRP value. We thus use that one to build our model.
 
@@ -102,8 +111,48 @@ df_pc.predict = cbind(df_pc, predict(lm_pc, interval = 'confidence'))
 ggplot(df_pc.predict, aes(x = MMAX, y = PRP)) +
   geom_point() +
   geom_line(aes(x = MMAX, y = fit)) +
-  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2)
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2) +
+  theme_minimal()
 ```
 
 Clearly this is not perfect, but does explain some aspects of the observations.
+
+## Estimating  car performance
+
+```{r}
+df_cars = read.csv("../data/Cars.txt", sep = "\t")
+summary(df_cars)
+```
+
+Looking at the available attributes it would seem unlikely that the model name can be used to predict the MPG attribute with a basic linear model. All other variables - excluding MPG itself - are likely candidates, so we will once more start by visualizing the correlation matrix.
+
+```{r}
+df_cars.cor = cor(
+  subset(
+    df_cars[sapply(df_cars, is.numeric)],
+  ),
+  use = "complete.obs",
+)
+corrplot(df_cars.cor)
+```
+
+The correlation matrix and its visualisation reveal that the car's weight is the best linear predictor for its MPG attribute - albeit obviously with a negative correlation of -0.83. We will thus use its weight to build a linear model.
+
+```{r}
+lm_cars = lm(mpg ~ weight, data = df_cars)
+summary(lm_cars)
+confint(lm_cars, 'weight', level = 0.95)
+```
+
+As before the model seems to explain something based on the significance values. The 5% confidence interval of the slope is roughly (-0.008, -0.007). We can again plot this linear relationship.
+
+```{r}
+df_cars.predict = cbind(df_cars, predict(lm_cars, interval = 'confidence'))
+
+ggplot(df_cars.predict, aes(x = weight, y = mpg)) +
+  geom_point() +
+  geom_line(aes(x = weight, y = fit)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2) +
+  theme_minimal()
+```
 
