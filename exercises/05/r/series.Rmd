@@ -1,0 +1,304 @@
+---
+title: "Statistical Learning Methods with R, Series 5"
+author: "Michael Senn"
+date: "07/04/2022"
+output:
+  pdf_document: default
+  html_document: default
+---    
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```            
+
+Load required libraries
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+```
+
+---
+
+## Linear model for education
+
+We first apply a linear model on the education/wage dataset, to try and find a linear relation between the wage and the other attributes.
+
+```{r}
+df_edu = read.csv("../data/EducationBis.txt", sep = "\t")
+df_edu$Gender = factor(df_edu$Gender)
+summary(df_edu)
+
+edu_model = lm(Wage ~ Education + Gender, data = df_edu)
+summary(edu_model)
+```
+
+Its output tells us that there very likely does exist such a linear relationship. Specifically the very low p values mean that it is very unlikely to get such observations (or more extreme ones) if the null hypothesis - which is that there is no linear relationship - were to hold.
+
+## Linear regression on computers dataset
+
+We now intend to create a multi-linear regression model on the computers dataset, to predict the PRP (reported performance) attribute. To do so we ignore the vendor and model attributes, as they are unlikely to be sensible linear predictors for the PRP attribute. We also ignore the ERP, as that attribute is a linear estimate of the PRP done by authors of the study from which the dataset is pulled.
+
+
+```{r}
+df_computers = read.csv("../data/Computers.txt", sep = "\t")
+df_computers$vendor = factor(df_computers$vendor)
+
+computers_model = lm(PRP ~ MYCT + MMIN + MMAX + CACH + CGMIN + CHMAX, data = df_computers)
+summary(computers_model)
+```
+
+The output tells us that some of the attributes, such as MMIN, MMAX, CACH and CHMAX, are very likely to be in a liner relation with PRP, as their p value is extremely small.
+
+Similarly MYCT is also likely to be part of a linear relation, as its p value of 0.006 is low enough that we can reject H0.
+
+CGMIN on the other hand has a p value of 0.75, so we are unable to reject H0, and cannot say whether there is likely to be a liner relation to PRP.
+
+We can also take a look at some of the models' plots
+
+```{r}
+plot(computers_model)
+```
+
+The distribution of residuals implies that there is either a non-linear relation, or a set of linear relations we are not aware of. The normal QQ plot shows that the residuals follow roughly a normal distribution, except for the head and tail of the distribution where there are a fair few outliers.
+
+Lastly we can reduce our model to one variable, and plot its predictions versus the actual data.
+
+```{r}
+lm_computers = lm(PRP ~ MMAX, data = df_computers)
+df_computers.predict = cbind(df_computers, predict(lm_computers, interval = 'confidence'))
+
+ggplot(df_computers.predict, aes(x = MMAX, y = PRP)) +
+  geom_point() +
+  geom_line(aes(x = MMAX, y = fit)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2) +
+  theme_minimal()
+```
+
+We notice that there are outliers throughout the whole range of values, making it far from perfect.
+
+## Linear regression on cars dataset
+
+Once more we attempt a linear regression on the cars dataset to predict the MPG attribute. This time - as above with computers - we use  multiple variables. We do exclude the name and origin parameters from our model. The former as it is unlikely to be in a linear relation with the MPG attribute, the later as there's no information whatsoever what it represents. The documentation only states that it is a multi-valued discrete attribute.
+
+We do however include the manufacturing year in the linear model, as it seems plausible that there has been changes in cars' efficiencies over the years.
+
+```{r}
+df_cars = read.csv("../data/Cars.txt", sep = "\t")
+
+cars_model = lm(mpg ~ cylinders + displacement + horsepower + weight + acceleration + year, data = df_cars)
+summary(cars_model)
+```
+
+From the model's output we see that two variables are likely to have a linear relation with the MPG attribute. One is the car's weight which has an inverse correlation - as one would expect. The other one is, indeed, the car's manufacturing year, implying that fuel efficiency of cars has (slowly) risen over the years.
+
+Again we limit ourselves to one attribute. As we've used the car's weight last series, we'll use the manufacturing year this time around. We plot the predicted versus actual data.
+
+
+```{r}
+lm_cars = lm(mpg ~ year, data = df_cars)
+df_cars.predict = cbind(df_cars, predict(lm_cars, interval = 'confidence'))
+
+ggplot(df_cars.predict, aes(x = year, y = mpg)) +
+  geom_point() +
+  geom_line(aes(x = year, y = fit)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2) +
+  theme_minimal()
+```
+
+Turns out there is a clear trend where newer cars have higher fuel efficiency, but the variance per year is extremely high. That is to be expected as there will be many different types of cars released in a given year. As such the graph consists of mostly outliers. If limited to a single variable, the car's weight might be a saner approach.
+
+## Calculating distance between two observations
+
+We now implement a function which will calculate either the L1 or L2 norm  of the distance between the two observations.
+
+```{r}
+# distance calculates either either the L2 (euclidean) norm 
+# of the distance of the two vectors, or the L1 norm.
+distance = function(a, b, euclidean = TRUE) {
+  # Of questionable use. R also considers numerical scalars as vectors, *and* 
+  # you can actually index them. Theyr 0th index seems to return the type, 
+  # any other index returns NA.
+  if (!is.vector(a) || !is.vector(b)) {
+    stop("a, b must be vectors")
+  }
+  
+  if (length(a) != length(b)) {
+    stop("a, b must be of equal length")
+  }
+  
+  diffs = abs(a - b)
+  
+  if (euclidean) {
+    diffs = diffs**2
+  }
+  
+  distance = sum(diffs)
+  
+  if (euclidean) {
+    distance = sqrt(distance)
+  }
+ 
+  
+  return(distance)
+}
+```
+
+## k-NN regression
+
+We now intend to use k-NN for regression. To do so, we will simply use the average of the predicted value of the k nearest neighbours as our prediction.
+
+The k-NN regression function is provided by the FNN library.
+```{r}
+library(FNN)
+```
+
+
+We first define a quick function to normalize a dataset
+
+```{r}
+normalize = function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+```
+
+
+### On the computer dataset
+
+And then perform k-NN regression on the computers dataset.
+
+```{r}
+# We'll load it again, I'd rather not rely on global variables 
+# not having been modified over the course of the notebook
+
+df_computers = read.csv("../data/Computers.txt", sep = "\t")
+df_computers$vendor = factor(df_computers$vendor)
+
+# Exclude vendor, model and ERP
+df_computers = df_computers[, 3:9]
+
+# Normalize
+computers.norm = as.data.frame(lapply(df_computers, normalize))
+
+n = nrow(computers.norm)
+train = sample(1:n, size = n/2)
+test = (1:n)[-train]
+
+# Remove PRP from training data, else predictions are a bit easy
+computers.train = computers.norm[train, -7]
+computers.train.labels = computers.norm[test, 7]
+
+computers.test = computers.norm[test, -7]
+computers.test.labels = computers.norm[test, 7]
+
+
+# Find k with lowest MSE
+best_k = 0
+best_mse = 100 # Surely you must be kidding
+for (k in 1:20) {
+  computers.knn =  knn.reg(
+    train=computers.train, 
+    test=computers.test,
+    y = computers.train.labels,
+    k = k
+  )
+  
+  mse = mean((computers.knn$pred - computers.test.labels)^2)
+  
+  if (mse < best_mse) {
+    best_mse = mse
+    best_k = k
+  }
+}
+
+computers.knn =  knn.reg(
+  train=computers.train, 
+  test=computers.test,
+  y = computers.train.labels,
+  k = best_k
+)
+mse = mean((computers.knn$pred - computers.test.labels)^2)
+print(sprintf("Best k = %d with MSE = %f", best_k, mse))
+
+# Plot predicted vs actual values
+computers.predicted = data.frame(prediction = computers.knn$pred, actual = computers.train.labels)
+
+# And plot it.
+ggplot(computers.predicted, aes(x = actual, y = prediction)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, color = "red") +
+  theme_minimal()
+```
+
+Do note that the MSE is so small that the non-determinism introduced by the random train/test split will mean that multiple invocations find a different best value for k. As such we might as well pick a conservative value of e.g. 3 in this case.
+
+
+### On the cars dataset
+
+And finally a k-NN regression on the cars dataset.
+
+```{r}
+# We'll load it again, I'd rather not rely on global variables 
+# not having been modified over the course of the notebook
+
+df_cars = read.csv("../data/Cars.txt", sep = "\t") %>%
+  filter(!is.na(horsepower)) # Filter out those with a NA value
+
+# Exclude name
+df_cars = df_cars[, 1:8]
+
+# Normalize
+cars.norm = as.data.frame(lapply(df_cars, normalize))
+
+n = nrow(cars.norm)
+train = sample(1:n, size = n/2)
+test = (1:n)[-train]
+
+# Remove MPG from training data, else predictions are a bit easy
+cars.train = cars.norm[train, -1]
+cars.train.labels = cars.norm[test, 1]
+
+cars.test = cars.norm[test, -1]
+cars.test.labels = cars.norm[test, 1]
+
+
+# Find k with lowest MSE
+best_k = 0
+best_mse = 100 # Surely you must be kidding
+for (k in 1:20) {
+  cars.knn =  knn.reg(
+    train=cars.train, 
+    test=cars.test,
+    y = cars.train.labels,
+    k = k
+  )
+  
+  mse = mean((cars.knn$pred - cars.test.labels)^2)
+  
+  if (mse < best_mse) {
+    best_mse = mse
+    best_k = k
+  }
+}
+
+cars.knn =  knn.reg(
+  train=cars.train, 
+  test=cars.test,
+  y = cars.train.labels,
+  k = best_k
+)
+mse = mean((cars.knn$pred - cars.test.labels)^2)
+print(sprintf("Best k = %d with MSE = %f", best_k, mse))
+
+# Plot predicted vs actual values
+cars.predicted = data.frame(prediction = cars.knn$pred, actual = cars.train.labels)
+
+# And plot it.
+ggplot(cars.predicted, aes(x = actual, y = prediction)) +
+  geom_point() +
+  geom_abline(slope = 1, intercept = 0, color = "red") +
+  theme_minimal()
+```
+
+Here too, the variation due to random sampling is so high that the choice of k is unstable. Howevr the MSE tends to be somewhat stable, fluctuating between 0.3 and 0.45.
