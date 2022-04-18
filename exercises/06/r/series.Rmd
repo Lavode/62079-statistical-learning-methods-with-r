@@ -1,0 +1,293 @@
+---
+title: "Statistical Learning Methods with R, Series 6"
+author: "Michael Senn"
+date: "07/04/2022"
+output:
+  pdf_document: default
+  html_document: default
+---    
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```            
+
+Load required libraries
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(FNN)
+```
+
+---
+
+We first define some utility functions.
+
+To normalize data:
+```{r}
+normalize = function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+```
+
+To figure out the best (in terms of lowest MSE) value of k for a k-NN regression:
+```{r}
+best_k_for_knn_reg = function(train, train.labels, test, test.labels, kStart, kEnd) {
+  best_mse = NA
+  for (k in kStart:kEnd) {
+    model = knn.reg(
+      train = train, 
+      test = test,
+      y = train.labels,
+      k = k
+    )
+    
+    mse = mean((model$pred - test.labels)^2)
+    
+    if (is.na(best_mse) || mse < best_mse) {
+      best_mse = mse
+      best_k = k
+    }
+  }
+  
+  return(best_k)
+}
+```
+
+
+
+## Comparing linear regression with k-NN on the computers dataset
+
+We start by loading the data, exclude parameters we are not interested in, and normalize the data set. Normalization is required for usage with k-NN, and does not hurt a linear regression. Having data normalized for both types of models allows easier comparison of metrics between the two.
+
+```{r}
+computers = read.csv("../data/Computers.txt", sep = "\t")
+
+# Exclude vendor, model and ERP
+computers = computers[, 3:9]
+
+# Normalize
+computers.norm = as.data.frame(lapply(computers, normalize))
+
+summary(computers.norm)
+```
+
+
+### Linear regression
+
+We first create two linear regressions, one in one variable, the other in multiple.
+
+```{r}
+computers.lm_single = lm(PRP ~ MMAX, data = computers.norm)
+summary(computers.lm_single)
+
+computers.lm_multiple = lm(PRP ~ MYCT + MMIN + MMAX + CACH + CGMIN + CHMAX, data = computers.norm)
+summary(computers.lm_multiple)
+```
+
+We can compare these two models by calculating their respective MSEs.
+```{r}
+computers.predict_single = cbind(computers.norm, predict(computers.lm_single, interval = 'confidence'))
+computers.predict_multiple = cbind(computers.norm, predict(computers.lm_multiple, interval = 'confidence'))
+
+mse.single_linear = mean((computers.predict_single$PRP - computers.predict_single$fit)^2)
+mse.multi_linear = mean((computers.predict_multiple$PRP - computers.predict_multiple$fit)^2)
+
+print(sprintf("Single linear regression: MSE = %f", mse.single_linear))
+print(sprintf("Multi linear regression: MSE = %f", mse.multi_linear))
+```
+
+We see that the multiple-regression model performs better, with an MSE of roughly 50% of the single-regression model.
+
+### k-NN regression
+
+We then perform a k-NN regression on the same dataset using 10-fold cross-validation.
+
+```{r}
+# x-fold cross validation
+x = 10
+n = nrow(computers.norm)
+chunkSize = floor(n / x)
+meanMSE = 0.0
+
+idxRange = 1:n
+permutation = sample(idxRange, n) # Permutation of 1..n
+
+startIdx = 1
+for (i in 1:x) {
+  # And these +-1s are why sane languages use semi-open intervals for indexing of collections
+  stopIdx = startIdx + chunkSize - 1
+  
+  # Indices of train/test sets for current fold
+  test = permutation[startIdx : stopIdx]
+  train = idxRange[-test]
+  
+  # Remove PRP from training data, else predictions are a bit easy
+  computers.train = computers.norm[train, -7]
+  computers.train.labels = computers.norm[train, 7]
+
+  computers.test = computers.norm[test, -7]
+  computers.test.labels = computers.norm[test, 7]
+  
+  best_k = best_k_for_knn_reg(
+    computers.train,
+    computers.train.labels,
+    computers.test,
+    computers.test.labels,
+    1,
+    50
+  )
+ 
+  computers.knn =  knn.reg(
+    train=computers.train, 
+    test=computers.test,
+    y = computers.train.labels,
+    k = best_k
+  )
+  mse = mean((computers.knn$pred - computers.test.labels)^2)
+  print(sprintf("Fold %d: Best k = %d with MSE = %f", i, best_k, mse))
+  
+  meanMSE = meanMSE + mse
+  
+  # Start index for next iteration
+  startIdx = stopIdx + 1
+}
+
+meanMSE = meanMSE / x
+mse.knn = meanMSE
+print(sprintf("k-NN regression with %d-fold CV: MSE = %f", x, mse.knn))
+```
+
+### Conclusion
+
+If we compare the mean MSE of our three models, we see that k-NN with 10-fold cross validation outperforms the linear regression models. Its main advantage is thus its better performance.
+
+Its main disadvantage however is that, as a k-NN model, it is large. Specifically it will necessarily contain all the training data, compared with a linear regression model which is only required to store the coefficients. As such it would not be a sensible choice if the amount of training data was large.
+
+```{r}
+print(sprintf("Single linear regression: MSE = %f", mse.single_linear))
+print(sprintf("Multi linear regression: MSE = %f", mse.multi_linear))
+print(sprintf("k-NN regression with %d-fold CV: MSE = %f", x, mse.knn))
+```
+
+
+## Comparing linear regression with k-NN on the cars dataset
+
+Again we first load the data, exclude attributes we do not care about, and normalize it.
+
+```{r}
+cars = read.csv("../data/Cars.txt", sep = "\t")
+
+# Exclude vendor, model and ERP
+cars = cars[, 1:7]
+
+# Fix dataset...
+cars = cars %>% 
+  filter(!is.na(weight)) %>% # Exclude NA values
+  mutate(mpg = as.numeric(mpg)) # For some reason this column is read as a char
+
+# Normalize
+cars.norm = as.data.frame(lapply(cars, normalize))
+
+summary(cars.norm)
+```
+
+
+### Linear regression
+
+We first create two linear regressions, one in one variable, the other in multiple.
+
+```{r}
+cars.lm_single = lm(mpg ~ weight, data = cars.norm)
+summary(cars.lm_single)
+
+cars.lm_multiple = lm(mpg ~ cylinders + displacement + horsepower + weight + acceleration + year, data = cars.norm)
+summary(cars.lm_multiple)
+```
+
+We can compare these two models by calculating their respective MSEs.
+```{r}
+cars.predict_single = cbind(cars.norm, predict(cars.lm_single, interval = 'confidence'))
+cars.predict_multiple = cbind(cars.norm, predict(cars.lm_multiple, interval = 'confidence'))
+
+mse.single_linear = mean((cars.predict_single$mpg - cars.predict_single$fit)^2)
+mse.multi_linear = mean((cars.predict_multiple$mpg - cars.predict_multiple$fit)^2)
+
+print(sprintf("Single linear regression: MSE = %f", mse.single_linear))
+print(sprintf("Multi linear regression: MSE = %f", mse.multi_linear))
+```
+
+We see that the multiple-regression model performs better, with an MSE of roughly 50% of the single-regression model.
+
+### k-NN regression
+
+We then perform a k-NN regression on the same dataset using 10-fold cross-validation.
+
+```{r}
+# x-fold cross validation
+x = 10
+n = nrow(cars.norm)
+chunkSize = floor(n / x)
+meanMSE = 0.0
+
+idxRange = 1:n
+permutation = sample(idxRange, n) # Permutation of 1..n
+
+startIdx = 1
+for (i in 1:x) {
+  # And these +-1s are why sane languages use semi-open intervals for indexing of collections
+  stopIdx = startIdx + chunkSize - 1
+  
+  # Indices of train/test sets for current fold
+  test = permutation[startIdx : stopIdx]
+  train = idxRange[-test]
+  
+  # Remove PRP from training data, else predictions are a bit easy
+  cars.train = cars.norm[train, -7]
+  cars.train.labels = cars.norm[train, 7]
+
+  cars.test = cars.norm[test, -7]
+  cars.test.labels = cars.norm[test, 7]
+  
+  best_k = best_k_for_knn_reg(
+    cars.train,
+    cars.train.labels,
+    cars.test,
+    cars.test.labels,
+    1,
+    100
+  )
+ 
+  cars.knn =  knn.reg(
+    train=cars.train, 
+    test=cars.test,
+    y = cars.train.labels,
+    k = best_k
+  )
+  mse = mean((cars.knn$pred - cars.test.labels)^2)
+  print(sprintf("Fold %d: Best k = %d with MSE = %f", i, best_k, mse))
+  
+  meanMSE = meanMSE + mse
+  
+  # Start index for next iteration
+  startIdx = stopIdx + 1
+}
+
+meanMSE = meanMSE / x
+mse.knn = meanMSE
+print(sprintf("k-NN regression with %d-fold CV: MSE = %f", x, mse.knn))
+```
+
+### Conclusion
+
+If we compare the mean MSE of our three models, we see that this time a linear regression with multiple variables outperforms the k-NN. As such, combined with the advantage of a compact representation which it offers, it seems the best choice of the three.
+
+```{r}
+print(sprintf("Single linear regression: MSE = %f", mse.single_linear))
+print(sprintf("Multi linear regression: MSE = %f", mse.multi_linear))
+print(sprintf("k-NN regression with %d-fold CV: MSE = %f", x, mse.knn))
+```
+
+
+
