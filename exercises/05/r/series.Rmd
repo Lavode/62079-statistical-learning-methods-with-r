@@ -187,7 +187,7 @@ test = (1:n)[-train]
 
 # Remove PRP from training data, else predictions are a bit easy
 computers.train = computers.norm[train, -7]
-computers.train.labels = computers.norm[test, 7]
+computers.train.labels = computers.norm[train, 7]
 
 computers.test = computers.norm[test, -7]
 computers.test.labels = computers.norm[test, 7]
@@ -222,7 +222,7 @@ mse = mean((computers.knn$pred - computers.test.labels)^2)
 print(sprintf("Best k = %d with MSE = %f", best_k, mse))
 
 # Plot predicted vs actual values
-computers.predicted = data.frame(prediction = computers.knn$pred, actual = computers.train.labels)
+computers.predicted = data.frame(prediction = computers.knn$pred, actual = computers.test.labels)
 
 # And plot it.
 ggplot(computers.predicted, aes(x = actual, y = prediction)) +
@@ -257,7 +257,7 @@ test = (1:n)[-train]
 
 # Remove MPG from training data, else predictions are a bit easy
 cars.train = cars.norm[train, -1]
-cars.train.labels = cars.norm[test, 1]
+cars.train.labels = cars.norm[train, 1]
 
 cars.test = cars.norm[test, -1]
 cars.test.labels = cars.norm[test, 1]
@@ -292,7 +292,7 @@ mse = mean((cars.knn$pred - cars.test.labels)^2)
 print(sprintf("Best k = %d with MSE = %f", best_k, mse))
 
 # Plot predicted vs actual values
-cars.predicted = data.frame(prediction = cars.knn$pred, actual = cars.train.labels)
+cars.predicted = data.frame(prediction = cars.knn$pred, actual = cars.test.labels)
 
 # And plot it.
 ggplot(cars.predicted, aes(x = actual, y = prediction)) +
