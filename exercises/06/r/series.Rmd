@@ -243,12 +243,12 @@ for (i in 1:x) {
   test = permutation[startIdx : stopIdx]
   train = idxRange[-test]
   
-  # Remove PRP from training data, else predictions are a bit easy
-  cars.train = cars.norm[train, -7]
-  cars.train.labels = cars.norm[train, 7]
+  # Remove MPG from training data, else predictions are a bit easy
+  cars.train = cars.norm[train, -1]
+  cars.train.labels = cars.norm[train, 1]
 
-  cars.test = cars.norm[test, -7]
-  cars.test.labels = cars.norm[test, 7]
+  cars.test = cars.norm[test, -1]
+  cars.test.labels = cars.norm[test, 1]
   
   best_k = best_k_for_knn_reg(
     cars.train,
@@ -281,7 +281,7 @@ print(sprintf("k-NN regression with %d-fold CV: MSE = %f", x, mse.knn))
 
 ### Conclusion
 
-If we compare the mean MSE of our three models, we see that this time a linear regression with multiple variables outperforms the k-NN. As such, combined with the advantage of a compact representation which it offers, it seems the best choice of the three.
+As with the computers data set, k-NN with 10-fold cross-validation performs the best, although it again has the downside of producing a model the size of which is linear in the training data, opposed to the constant-sized model of the linear regression.
 
 ```{r}
 print(sprintf("Single linear regression: MSE = %f", mse.single_linear))
