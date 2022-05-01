@@ -35,12 +35,16 @@ normalize = function(x) {
 
 ```{r}
 # Perform x-fold cross validation on a linear model over a given data frame
-linear_cv = function(df, formula, x) {
+linear_cv = function(df, formula, x, seed=NA) {
+  if (!is.na(seed)) {
+    set.seed(seed)
+  }
+  
   # x-fold cross validation
   n = nrow(df)
   chunkSize = floor(n / x)
-  meanMSE = 0.0
-
+  mses = c()
+  
   idxRange = 1:n
   permutation = sample(idxRange, n) # Permutation of 1..n
   
@@ -63,15 +67,15 @@ linear_cv = function(df, formula, x) {
     
     # print(sprintf("Fold %d: MSE = %e", i, mse))
     
-    meanMSE = meanMSE + mse
+    mses = append(mses, mse)
     
     # Start index for next iteration
     startIdx = stopIdx + 1
   }
   
-  meanMSE = meanMSE / x
+  meanMSE = mean(mses)
   # print(sprintf("Linear regression with %d-fold CV: MSE = %e", x, meanMSE))
-  return(meanMSE)
+  return(list("mean" = meanMSE, "mse" = mses))
 }
 ```
 
@@ -84,7 +88,7 @@ We first start by loading the cars data set, cleaning and normalizing it, and ch
 ```{r}
 cars = read.csv("../data/Cars.txt", sep = "\t")
 cars = cars %>%
-  filter(!is.na(cylinders) & !is.na(horsepower))
+  filter(!is.na(horsepower))
 
 # Why is it interpreted as a char by default?
 cars$mpg = as.double(cars$mpg)
@@ -117,16 +121,40 @@ cars.formula_multi = as.formula(mpg ~ cylinders + displacement + horsepower + we
 We then compare the three models using ten-fold cross-validation.
 
 ```{r}
-cars.single.mse = linear_cv(cars.norm, cars.formula_single, 10)
-cars.all.mse = linear_cv(cars.norm, cars.formula_all, 10)
-cars.multi.mse = linear_cv(cars.norm, cars.formula_multi, 10)
+# We inject a fixed seed into all three runs, to ensure the splits of the CV are equal for all 
+# three so that the respective MSEs of each run were using the same split, allowing a more 
+# meaningful comparison with the t test.
+seed = 42
 
-print(sprintf("Single MSE = %e", cars.single.mse))
-print(sprintf("All MSE = %e", cars.all.mse))
-print(sprintf("Multi MSE = %e", cars.multi.mse))
+cars.single.results = linear_cv(cars.norm, cars.formula_single, 10, seed)
+cars.all.results = linear_cv(cars.norm, cars.formula_all, 10, seed)
+cars.multi.results = linear_cv(cars.norm, cars.formula_multi, 10, seed)
+
+print(sprintf("Single MSE = %e", cars.single.results$mean))
+print(sprintf("All MSE = %e", cars.all.results$mean))
+print(sprintf("Multi MSE = %e", cars.multi.results$mean))
 ```
 
 Turns out that, while going from a single linear regression to a multiple linear regression model improves the MSE, running it on all attributes - at least in this data set - provides by far the best result. This is not fully unexpected, as the other attributes such as year and acceleration also have a fairly high correlation with MPG.
 
 ### Evaluation using t-test
+
+We can also utilize a t-test on the vector of MSEs of the ten-fold cross-validation, for a more rigorous reasoning.
+
+We first compare the single with the multiple linear regression. While the p value is not particularly high, it is also by far not low enough for us to assume that the two model perform different in a meaningful way.
+```{r}
+t.test(cars.single.results$mse, cars.multi.results$mse, paired=TRUE, alternative="two.sided")
+```
+
+
+Comparing the single and multiple linear regression with the multiple linear regression using all variables, however, does indeed confirm our assumption that the later model has a significantly different performance from the first two, as the respective p values are very low.
+```{r}
+t.test(cars.single.results$mse, cars.all.results$mse, paired=TRUE, alternative="two.sided")
+t.test(cars.multi.results$mse, cars.all.results$mse, paired=TRUE, alternative="two.sided")
+```
+For completness' sake we can also run a t-test using the "greater" alternative hypothesis, which indeed confirms that the MSE of the full model is significantly lower than the one of the two others.
+```{r}
+t.test(cars.single.results$mse, cars.all.results$mse, paired=TRUE, alternative="greater")
+t.test(cars.multi.results$mse, cars.all.results$mse, paired=TRUE, alternative="greater")
+```
 
