@@ -1,0 +1,132 @@
+---
+title: "Statistical Learning Methods with R, Series 7"
+author: "Michael Senn"
+date: "01/05/2022"
+output:
+  pdf_document: default
+  html_document: default
+---    
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```            
+
+Load required libraries
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(FNN)
+library(corrplot)
+```
+
+---
+
+## Utility functions
+
+As usual, some utility functions.
+
+```{r}
+normalize = function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+```
+
+```{r}
+# Perform x-fold cross validation on a linear model over a given data frame
+linear_cv = function(df, formula, x) {
+  # x-fold cross validation
+  n = nrow(df)
+  chunkSize = floor(n / x)
+  meanMSE = 0.0
+
+  idxRange = 1:n
+  permutation = sample(idxRange, n) # Permutation of 1..n
+  
+  startIdx = 1
+  for (i in 1:x) {
+    # And these +-1s are why sane languages use semi-open intervals for indexing of collections
+    stopIdx = startIdx + chunkSize - 1
+    
+    # Indices of train/test sets for current fold
+    test = permutation[startIdx : stopIdx]
+    train = idxRange[-test]
+    
+    df.train = df[train,]
+    df.test = df[test,]
+    
+    # Train model using train data & use it to predict on test data
+    df.lm = lm(formula, data = df.train)
+    df.predict = cbind(df.test, predict.lm(df.lm, newdata = df.test, interval = 'confidence'))
+    mse = mean((df.predict$mpg - df.predict$fit)^2)
+    
+    # print(sprintf("Fold %d: MSE = %e", i, mse))
+    
+    meanMSE = meanMSE + mse
+    
+    # Start index for next iteration
+    startIdx = stopIdx + 1
+  }
+  
+  meanMSE = meanMSE / x
+  # print(sprintf("Linear regression with %d-fold CV: MSE = %e", x, meanMSE))
+  return(meanMSE)
+}
+```
+
+
+
+## Comparing linear regression models
+
+We first start by loading the cars data set, cleaning and normalizing it, and checking out the correlation matrix.
+
+```{r}
+cars = read.csv("../data/Cars.txt", sep = "\t")
+cars = cars %>%
+  filter(!is.na(cylinders) & !is.na(horsepower))
+
+# Why is it interpreted as a char by default?
+cars$mpg = as.double(cars$mpg)
+
+# We exclude the name, as that one is bound to be useless
+cars = cars[, -9]
+
+summary(cars)
+
+cars.norm = normalize(cars)
+
+cars.cor = cor(
+  subset(
+    cars.norm[sapply(cars.norm, is.numeric)],
+  ),  
+  use = "complete.obs",
+)
+corrplot(cars.cor)
+```
+
+We then define three linear regression models to predict the MPG attribute. One purely based on weight, one on all attributes, and one on those which highly correlate with MPG.
+```{r}
+cars.formula_single = as.formula(mpg ~ weight)
+cars.formula_all = as.formula(mpg ~ cylinders + displacement + horsepower + weight + acceleration + year + origin)
+cars.formula_multi = as.formula(mpg ~ cylinders + displacement + horsepower + weight)
+```
+
+### Evaluation using 10-fold CV
+
+We then compare the three models using ten-fold cross-validation.
+
+```{r}
+cars.single.mse = linear_cv(cars.norm, cars.formula_single, 10)
+cars.all.mse = linear_cv(cars.norm, cars.formula_all, 10)
+cars.multi.mse = linear_cv(cars.norm, cars.formula_multi, 10)
+
+print(sprintf("Single MSE = %e", cars.single.mse))
+print(sprintf("All MSE = %e", cars.all.mse))
+print(sprintf("Multi MSE = %e", cars.multi.mse))
+```
+
+Turns out that, while going from a single linear regression to a multiple linear regression model improves the MSE, running it on all attributes - at least in this data set - provides by far the best result. This is not fully unexpected, as the other attributes such as year and acceleration also have a fairly high correlation with MPG.
+
+### Evaluation using t-test
+
