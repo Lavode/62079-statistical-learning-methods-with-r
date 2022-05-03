@@ -157,4 +157,63 @@ For completness' sake we can also run a t-test using the "greater" alternative h
 t.test(cars.single.results$mse, cars.all.results$mse, paired=TRUE, alternative="greater")
 t.test(cars.multi.results$mse, cars.all.results$mse, paired=TRUE, alternative="greater")
 ```
+## Logistic regression on cancer dataset
 
+Load the dataset, and turn the diagnosis into a numerical value. 1 For malignant, 0 for benign.
+
+```{r}
+cancer = read.csv("../data/Cancer.txt", sep = "\t") %>%
+  mutate(Diagnostic = if_else(Diagnostic == "M", 1, 0))
+
+summary(cancer)
+```
+
+Split it into train and test, and run a logistical regression on the train dataset.
+```{r}
+n = nrow(cancer)
+idxRange = 1:n
+permutation = sample(idxRange, n*0.8) # Permutation of 1..n
+
+cancer.train = cancer[permutation,]
+cancer.test = cancer[-permutation,]
+
+cancer.glm = glm(Diagnostic ~ ., data = cancer.train, family = binomial(link = "logit"))
+summary(cancer.glm)
+```
+
+Turns out it does not converge, but the AIC value is low, so it's probably ok? We'll find out. To do so, we'll check out accuracy, precision, and recall.
+
+```{r}
+cancer.predict = predict.glm(cancer.glm, newdata = cancer.test, type = "response")
+# We'll use 0.5 as a binarization cutoff
+cancer.predict = as.numeric(cancer.predict > 0.5)
+
+correct.idx = cancer.test$Diagnostic == cancer.predict
+correct.count = sum(correct.idx)
+
+accuracy = correct.count / nrow(cancer.test)
+
+# Confusion matrix. Mostly it confuses me about what's where
+conf = table(cancer.test$Diagnostic, cancer.predict)
+
+actual_positives = sum(cancer.test$Diagnostic)
+actual_negatives = nrow(cancer.test) - actual_positives
+
+true_positives = conf[4]
+false_negatives = conf[2]
+true_positives + false_negatives == actual_positives
+
+true_negatives = conf[1]
+false_positives = conf[3]
+true_negatives + false_positives == actual_negatives
+
+precision = true_positives / (true_positives + false_positives)
+recall = true_positives / actual_positives
+
+
+print(sprintf("Accuracy = %.2f%%", accuracy*100))
+print(sprintf("Recall = %.2f%%", recall*100))
+print(sprintf("Precision = %.2f%%", precision*100))
+```
+
+Accuracy, precision and recall are all decently high, so the model seems to perform well, and its error is rather low.
