@@ -35,7 +35,7 @@ normalize = function(x) {
 
 ```{r}
 # Perform x-fold cross validation on a linear model over a given data frame
-linear_cv = function(df, formula, x, seed=NA) {
+generalized_linear_cv = function(df, formula, x, seed=NA) {
   if (!is.na(seed)) {
     set.seed(seed)
   }
@@ -61,9 +61,10 @@ linear_cv = function(df, formula, x, seed=NA) {
     df.test = df[test,]
     
     # Train model using train data & use it to predict on test data
-    df.lm = lm(formula, data = df.train)
-    df.predict = cbind(df.test, predict.lm(df.lm, newdata = df.test, interval = 'confidence'))
-    mse = mean((df.predict$mpg - df.predict$fit)^2)
+    df.glm = glm(formula, data = df.train)
+    
+    df.predict = predict.glm(df.glm, newdata = df.test, type = "response")
+    mse = mean((df.predict - df.test$mpg)^2)
     
     # print(sprintf("Fold %d: MSE = %e", i, mse))
     
@@ -126,9 +127,9 @@ We then compare the three models using ten-fold cross-validation.
 # meaningful comparison with the t test.
 seed = 42
 
-cars.single.results = linear_cv(cars.norm, cars.formula_single, 10, seed)
-cars.all.results = linear_cv(cars.norm, cars.formula_all, 10, seed)
-cars.multi.results = linear_cv(cars.norm, cars.formula_multi, 10, seed)
+cars.single.results = generalized_linear_cv(cars.norm, cars.formula_single, 10, seed)
+cars.all.results = generalized_linear_cv(cars.norm, cars.formula_all, 10, seed)
+cars.multi.results = generalized_linear_cv(cars.norm, cars.formula_multi, 10, seed)
 
 print(sprintf("Single MSE = %e", cars.single.results$mean))
 print(sprintf("All MSE = %e", cars.all.results$mean))
