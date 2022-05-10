@@ -166,6 +166,9 @@ Load the dataset, and turn the diagnosis into a numerical value. 1 For malignant
 cancer = read.csv("../data/Cancer.txt", sep = "\t") %>%
   mutate(Diagnostic = if_else(Diagnostic == "M", 1, 0))
 
+# Remove ID
+cancer = cancer[, -1]
+
 summary(cancer)
 ```
 
