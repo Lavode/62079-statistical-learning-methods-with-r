@@ -136,6 +136,6 @@ print(sprintf("Recall = %.2f%% - %.2f%%", results.glm$recall*100, results.lda$re
 print(sprintf("Precision = %.2f%% - %.2f%%", results.glm$precision*100, results.lda$precision*100))
 ```
 
-Based on this single train/test split, GLM performs slightly better. However the difference is small enough that I'd be hesistant to proclaim it a winner, without testing different train/test splits by means of e.g. cross validation.
+Based on this single train/test split, both models have a comparable performance. Without additional evaluations with different train/test splits - e.g. by means of a cross validation - it seems impossible to meaningfully claim that one of them performs better than the other.
 
 There's also at least one meta parameter, in the form of the cutoff used for binarization of the GLM prediction, which could be tuned further.
