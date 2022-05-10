@@ -1,0 +1,141 @@
+---
+title: "Statistical Learning Methods with R, Series 8"
+author: "Michael Senn"
+date: "10/05/2022"
+output:
+  pdf_document: default
+  html_document: default
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load required libraries
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(FNN)
+library(corrplot)
+library(MASS)
+```
+
+------------------------------------------------------------------------
+
+## Utility functions
+
+A utility functions to calculate precision, recall and accuracy given a vector of predicted and actual labels. Only works for binary classes with values 0 and 1 respectively.
+
+```{r}
+evaluate_model = function(predicted, actual) {
+  correct.idx = actual == predicted
+  correct.count = sum(correct.idx)
+  
+  accuracy = correct.count / length(actual)
+  
+  # Confusion matrix. Mostly it confuses me about what's where
+  conf = table(actual, predicted)
+  
+  actual_positives = sum(actual)
+  actual_negatives = length(actual) - actual_positives
+  
+  true_positives = conf[4]
+  false_negatives = conf[2]
+  true_positives + false_negatives == actual_positives
+  
+  true_negatives = conf[1]
+  false_positives = conf[3]
+  true_negatives + false_positives == actual_negatives
+  
+  precision = true_positives / (true_positives + false_positives)
+  recall = true_positives / actual_positives
+  
+  return(list(
+    "accuracy" = accuracy,
+    "recall" = recall,
+    "precision" = precision
+  ))
+}
+```
+
+
+## Logistic regression on vertebral dataset
+
+We'll start by loading the dataset. We also turn the status into a numerical value - 0 for normal, 1 for abnormal.
+
+```{r}
+vertebral = read.csv("../data/Vertebral.txt", sep = ",", comment.char = "#") %>%
+  mutate(Status = if_else(Status == "Normal", 0, 1))
+
+summary(vertebral)
+```
+
+
+Split it into train and test, and run a logistical regression on the train dataset.
+
+```{r}
+n = nrow(vertebral)
+idxRange = 1:n
+permutation = sample(idxRange, n*0.8) # Permutation of 1..n
+
+vertebral.train = vertebral[permutation,]
+vertebral.test = vertebral[-permutation,]
+
+vertebral.glm = glm(Status ~ ., data = vertebral.train, family = binomial(link = "logit"))
+summary(vertebral.glm)
+```
+
+Based on the model the radius and degree attributes seem to be exceptional predictors for the status, whereas titlt, angle and slope are less so. The low AIC value further implies that the model is fairly decent. We'll now evaluate its performance by calculating accuracy, precision and recall over the test dataset.
+
+```{r}
+vertebral.glm.predict = predict.glm(vertebral.glm, newdata = vertebral.test, type = "response")
+# We'll use 0.5 as a binarization cutoff
+vertebral.glm.predict = as.numeric(vertebral.glm.predict > 0.5)
+
+results.glm = evaluate_model(vertebral.glm.predict, vertebral.test$Status)
+
+print(sprintf("Accuracy = %.2f%%", results.glm$accuracy*100))
+print(sprintf("Recall = %.2f%%", results.glm$recall*100))
+print(sprintf("Precision = %.2f%%", results.glm$precision*100))
+```
+
+Accuracy, precision and recall are all decently high, so the model seems to perform well, and its error is rather low.
+
+## LDA on vertebral dataset
+
+We'll now do the same as above, except using an LDA as predictor rather than a logistical regression. We can reuse the prepared train and test datasets from above, and start right away with an LDA.
+
+```{r}
+vertebral.lda = lda(Status ~ ., data = vertebral.train)
+summary(vertebral.lda)
+plot(vertebral.lda)
+```
+Again we use the built model to run predictions on the train dataset.
+```{r}
+vertebral.lda.predict = predict(vertebral.lda, newdata = vertebral.test)
+
+results.lda = evaluate_model(vertebral.lda.predict$class, vertebral.test$Status)
+
+print(sprintf("Accuracy = %.2f%%", results.lda$accuracy*100))
+print(sprintf("Recall = %.2f%%", results.lda$recall*100))
+print(sprintf("Precision = %.2f%%", results.lda$precision*100))
+```
+
+## Comparing GLM and LDA
+
+For comparison purposes, we'll compare the three metrics of the two models.
+
+```{r}
+print("GLM - LDA")
+print(sprintf("Accuracy = %.2f%% - %.2f%%", results.glm$accuracy*100, results.lda$accuracy*100))
+print(sprintf("Recall = %.2f%% - %.2f%%", results.glm$recall*100, results.lda$recall*100))
+print(sprintf("Precision = %.2f%% - %.2f%%", results.glm$precision*100, results.lda$precision*100))
+```
+
+Based on this single train/test split, GLM performs slightly better. However the difference is small enough that I'd be hesistant to proclaim it a winner, without testing different train/test splits by means of e.g. cross validation.
+
+There's also at least one meta parameter, in the form of the cutoff used for binarization of the GLM prediction, which could be tuned further.
