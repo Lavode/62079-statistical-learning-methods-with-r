@@ -1,0 +1,130 @@
+---
+title: "Statistical Learning Methods with R, Series 10"
+author: "Michael Senn"
+date: "22/05/2022"
+output:
+  pdf_document: default
+  html_document: default
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load required libraries
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(FNN)
+library(corrplot)
+library(MASS)
+```
+
+------------------------------------------------------------------------
+
+## PCA of Boston dataset
+
+We'll load the Boston dataset, discard the medv attribute, and normalize the rest using min-max normalization. This has the advantage of not requiring any special treatment for the CHAS binary attribute..
+```{r}
+boston.raw = read.csv("../data/Boston.txt", sep = " ", comment.char = "#")
+boston = boston.raw[, -13]
+
+min_max_norm <- function(x) {
+    (x - min(x)) / (max(x) - min(x))
+}
+
+boston.norm <- as.data.frame(lapply(boston, min_max_norm))
+all(boston$chas == boston.norm$chas)
+```
+
+
+We then create a PCA model of this dataset, and plot it.
+```{r}
+boston.pca = princomp(boston.norm, cor = TRUE)
+summary(boston.pca, loadings=T)
+```
+```{r}
+plot(boston.pca)
+```
+
+We note that the first component contributes to around 49% of the population's variance.
+
+We also see that the attribute contributing the most to the first component is the *indus* one (proportion of non-retail business), with a coefficient of 0.355. The one contributing the least is *rm* (average number of rooms per dwelling), with a coefficient of -0.196.
+
+Combining all components - unsurprisingly - accounts for 100% of the variance of the sample. If we instead, to simplify the model, wanted to account for only 80% of variance, then we could use the first four (accounting for 78%) or five (accounting for 85%) components. For the remainder of the exercise we'll use a dataset built from the first four components.
+
+```{r}
+# Define two new data frames, using the first four, respectively all, components of the PCA.
+boston.pca.simple = as.data.frame(boston.pca$scores[, 1:4])
+boston.pca.full = as.data.frame(boston.pca$scores)
+
+# And add the medv attribute
+boston.pca.simple$medv = boston.raw$medv
+boston.pca.full$medv = boston.raw$medv
+```
+
+We now train a multiple regression model on both the full as well as the partial data sets resultant from the PCA, and compare the results using 10-fold CV.
+
+```{r}
+# Perform x-fold cross validation on a linear model over a given data frame
+generalized_linear_cv = function(df, formula, x, seed=NA) {
+  if (!is.na(seed)) {
+    set.seed(seed)
+  }
+  
+  # x-fold cross validation
+  n = nrow(df)
+  chunkSize = floor(n / x)
+  mses = c()
+  
+  idxRange = 1:n
+  permutation = sample(idxRange, n) # Permutation of 1..n
+  
+  startIdx = 1
+  for (i in 1:x) {
+    # And these +-1s are why sane languages use semi-open intervals for indexing of collections
+    stopIdx = startIdx + chunkSize - 1
+    
+    # Indices of train/test sets for current fold
+    test = permutation[startIdx : stopIdx]
+    train = idxRange[-test]
+    
+    df.train = df[train,]
+    df.test = df[test,]
+    
+    # Train model using train data & use it to predict on test data
+    df.glm = glm(formula, data = df.train)
+    
+    df.predict = predict.glm(df.glm, newdata = df.test, type = "response")
+    mse = mean((df.predict - df.test$medv)^2)
+    
+    # print(sprintf("Fold %d: MSE = %e", i, mse))
+    
+    mses = append(mses, mse)
+    
+    # Start index for next iteration
+    startIdx = stopIdx + 1
+  }
+  
+  meanMSE = mean(mses)
+  # print(sprintf("Linear regression with %d-fold CV: MSE = %e", x, meanMSE))
+  return(list("mean" = meanMSE, "mse" = mses))
+}
+```
+
+
+```{r}
+seed = 42
+
+boston.simple.results = generalized_linear_cv(boston.pca.simple, as.formula(medv ~ .), 10, seed)
+boston.full.results = generalized_linear_cv(boston.pca.full, as.formula(medv ~ .), 10, seed)
+
+print(sprintf("MSE if using first four components = %e", boston.simple.results$mean))
+print(sprintf("MSE if using all components = %e", boston.full.results$mean))
+```
+
+We see that the average MSE when using only four components is approximately 10% larger than when using all components of the PCA.
