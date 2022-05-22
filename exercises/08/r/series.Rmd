@@ -110,9 +110,10 @@ Accuracy, precision and recall are all decently high, so the model seems to perf
 We'll now do the same as above, except using an LDA as predictor rather than a logistical regression. We can reuse the prepared train and test datasets from above, and start right away with an LDA.
 
 ```{r}
-vertebral.lda = lda(Status ~ ., data = vertebral.train)
+vertebral.lda = lda(Status ~ Incidence + Tilt + Angle + Slope + Radius + Degree, data = vertebral.train)
 summary(vertebral.lda)
 plot(vertebral.lda)
+vertebral.lda
 ```
 Again we use the built model to run predictions on the train dataset.
 ```{r}
@@ -124,6 +125,11 @@ print(sprintf("Accuracy = %.2f%%", results.lda$accuracy*100))
 print(sprintf("Recall = %.2f%%", results.lda$recall*100))
 print(sprintf("Precision = %.2f%%", results.lda$precision*100))
 ```
+
+[1] "Accuracy = 79.03%"
+[1] "Recall = 92.50%"
+[1] "Precision = 78.72%"
+
 
 ## Comparing GLM and LDA
 

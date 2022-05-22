@@ -20,8 +20,16 @@
 - LDA vs k-NN vs others
   - => Slides 06b, pp 66
 
+- Curse of dimensionality
+ - => Slides 09, p 17
+
+- Use RNG seed for reproducible train/test split
+
+- Given similarity matrix, find most similar pairs
+  - Show merging path if e.g. applying single-link (max similarity) merging
+  - => Slides 09, pp 42
+
 # Utilities
 
 - Pocket calculator
-
 
