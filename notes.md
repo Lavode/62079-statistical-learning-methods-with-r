@@ -25,3 +25,8 @@ warning be output. Others (e.g. GLM) this has to be detected by the user.
 At least with LDA, leaving collinear ones in seems not to hurt the model in
 terms of quality. It does make it more complex than needed though, so maybe
 it's mostly an aesthetic issue rather than a practical one.
+
+# Ridge regression
+
+- Higher bias but lower variance than ordinary least-squares models
+- Hence better if predictors in available data have high variance
