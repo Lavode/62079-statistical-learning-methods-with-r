@@ -10,15 +10,26 @@
 - Given output of linear model, what can you say about model quality
   - Are all coefficients important?
 
-- LDA vs linear regression:
+- LDA vs logistic regression for classification:
   - When to use what
+    - Logistic regression requires well-separated classes, usually two classes
+    - LDA more flexible, usually multiple classes
   - Numbers of parameters of each?
-  - => Slides 06b, p 59
+    - => Slides 06b, p 59
+    - Log reg with p predictors has p+1 parameters
+    - LDA estimates K*p means and p*(p+1)/2 (co)variance matrices
   - When does LDA perform badly?
-  - => Slides 06b, p 60
+    - => Slides 06b, p 60
+    - LDA assumes same variance for all categories
+    - Compare QDA: Each category its own variance
+        - But needs more data
+  - Both produce linear boundaries!
+  - LDA assumes gaussian distribution for both classes with same (co)variance, log reg does not
 
 - LDA vs k-NN vs others
   - => Slides 06b, pp 66
+  - LDA assumes gaussian distribution of the classes
+  - k-NN non-parameteric, more flexible
 
 - Curse of dimensionality
  - => Slides 09, p 17
@@ -80,12 +91,12 @@
     - Estimates loss of information in model. Lower = better
 
 - QDA vs LDA
-  - LDA assumes same variance for all classes
+  - LDA assumes same (co)variance for all classes
     - Good if this holds, or we have not enough data to estimate individual
       variances
   - QDA assumes separate variance per class
     - Good if this holds AND we have enough data to actually estimate the
-      per-class variance
+      per-class (co)variance
 
 - CART
   - How to prevent overfitting?

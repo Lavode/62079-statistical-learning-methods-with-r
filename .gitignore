@@ -10,3 +10,4 @@ slides
 .RData
 
 exercises/**/*.log
+summary/*.log
